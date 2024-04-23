@@ -2,10 +2,14 @@ import tkinter as tk
 from tkinter import filedialog
 from PIL import Image, ImageTk
 from tkcalendar import DateEntry
-from datetime import datetime
+from datetime import date, datetime
 import os
 from shutil import copyfile
 import uuid
+import os
+import json
+
+INDEX_DATA_FILE = "index_data.json"
 
 class ImageDocumentingWindow:
     def __init__(self, master):
@@ -61,7 +65,7 @@ class ImageDocumentingWindow:
                 else:
                     new_height = 400
                     new_width = int(width * (400 / height))
-                image = image.resize((new_width, new_height), Image.ANTIALIAS)
+                image = image.resize((new_width, new_height), Image.LANCZOS)
             self.image_list.append(ImageTk.PhotoImage(image))
             self.descriptions_row.append("")
             self.descriptions_stalks.append("")
@@ -101,13 +105,50 @@ class ImageDocumentingWindow:
             return
         directory = filedialog.askdirectory()
         if directory:
+            unique_ids = []
             for i, original_path in enumerate(self.original_paths):
-                description_row = self.descriptions_row[i]
-                description_stalks = self.descriptions_stalks[i]
+                #description_row = self.descriptions_row[i]
+                #description_stalks = self.descriptions_stalks[i]
                 unique_id = uuid.uuid4().hex[:6]
-                file_name = f"{self.date_selector.get_date().strftime('%m-%d-%Y')}_{description_row}_{description_stalks}_{unique_id}.jpg"
+                unique_ids.append(unique_id)
+                file_name = f"{unique_id}.jpg"
                 file_path = os.path.join(directory, file_name)
                 copyfile(original_path, file_path)
+            index_data = self.generate_index_data(unique_ids)
+            save_index_to_file(index_data, INDEX_DATA_FILE)
+    
+    def generate_index_data(self, uuids):
+        index_data = {}
+        for i in range(len(uuids)):
+            uuid = uuids[i]
+            data = {"date": self.date_selector.get_date(), "row": self.descriptions_row[i], "stalks": self.descriptions_stalks[i]}
+            index_data[uuid] = data
+        return index_data
+
+
+def save_index_to_file(index_data, filename):
+    file_path = os.path.join(os.getcwd(), filename)
+
+    if os.path.exists(file_path):
+        # Load existing data and update it with new data
+        existing_data = load_index_from_file(filename)
+        existing_data.update(index_data)
+        index_data = existing_data
+
+    with open(filename, 'w') as file:
+        json.dump(index_data, file, default=json_serial)
+
+def load_index_from_file(filename):
+    if not os.path.exists(filename):
+        return {}  # Return an empty dictionary if file doesn't exist
+
+    with open(filename, 'r') as file:
+        index_data = json.load(file)
+    return index_data
+
+def json_serial(obj):
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
 
 def main():
     root = tk.Tk()
